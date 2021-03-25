@@ -92,6 +92,8 @@ struct proc {
   int killed;                  // If non-zero, have been killed
   int xstate;                  // Exit status to be returned to parent's wait
   int pid;                     // Process ID
+  int traceArray[22];          // If there is a cell with non-zero value , trace after that syscall
+  int traceFlag;               // If non-zero, trace this proc
 
   // proc_tree_lock must be held when using this:
   struct proc *parent;         // Parent process

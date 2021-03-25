@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "syscall.h"
 
 struct cpu cpus[NCPU];
 
@@ -653,4 +654,25 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+void
+trace(int mask, int pid)
+{
+  struct proc *p;
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock);
+    if(p->pid == pid){
+      p->traceFlag = 1;
+      for(int i=1; i<=22; i++){
+        int k= (mask >> i ) & 1;
+        p->traceArray[i] = k;
+        printf("%d", k);
+      }
+    }
+    release(&p->lock);
+  }
+  // for(int i=0; i<22; i++){
+  //   printf("%d", p->traceArray[i]);
+  // }
 }

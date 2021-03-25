@@ -3,6 +3,7 @@
 #include "kernel/types.h"
 #include "user/user.h"
 #include "kernel/fcntl.h"
+#include "kernel/stat.h"
 
 // Parsed command representation
 #define EXEC  1
@@ -10,6 +11,7 @@
 #define PIPE  3
 #define LIST  4
 #define BACK  5
+#define PATH "/path"
 
 #define MAXARGS 10
 
@@ -52,6 +54,9 @@ struct backcmd {
 int fork1(void);  // Fork but panics on failure.
 void panic(char*);
 struct cmd *parsecmd(char*);
+int getFileLength(char* path);
+int isFileExists(const char *filename);
+
 
 // Execute cmd.  Never returns.
 void
@@ -74,10 +79,44 @@ runcmd(struct cmd *cmd)
   case EXEC:
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
-      exit(1);
-    exec(ecmd->argv[0], ecmd->argv);
+      exit(0);
+    
+    int fd = open(PATH, O_CREATE | O_RDWR);
+    // printf("%d\n", fd);
+    write(fd, "/:/user/:", 9);
+    close(fd);
+    
+
+    if (isFileExists(ecmd->argv[0])) {
+        exec(ecmd->argv[0], ecmd->argv);
+    } else {
+        int bufferLength = getFileLength(PATH);
+        int fd = open(PATH, O_CREATE | O_RDWR);
+        char *buffer = malloc(bufferLength);
+        read(fd, buffer, bufferLength);
+        close(fd);
+
+        char *start = buffer;
+        char *end, *path;
+        int cmdLength = strlen(ecmd->argv[0]);
+        while ((end = strchr(start, ':')) != 0) {
+            int pathLength = end - start;
+            path = malloc(cmdLength + pathLength);
+            for (int i = 0; start[i] != ':'; i++) {
+                path[i] = start[i];
+            }
+            for (int i = 0; i < cmdLength; i++) {
+                path[i + pathLength] = ecmd->argv[0][i];
+            }
+            if (isFileExists(path)) {
+                exec(path, ecmd->argv);
+            }
+            start = end + 1;
+        }
+    }
     fprintf(2, "exec %s failed\n", ecmd->argv[0]);
     break;
+
 
   case REDIR:
     rcmd = (struct redircmd*)cmd;
@@ -491,3 +530,28 @@ nulterminate(struct cmd *cmd)
   }
   return cmd;
 }
+
+ int isFileExists(const char *filename) {
+      struct stat buffer;
+      int exist;
+      exist = stat(filename, &buffer);
+      if(exist != -1) {
+          return 1;
+      }
+      else { // -1
+          return 0;
+      }
+  }
+
+  int getFileLength(char* path) {
+    int fd = open(path, O_RDONLY), length = 0;
+    char c;
+    if (fd < 0) {
+        return -1;
+    }
+    while(read(fd, &c, 1) == 1) {
+        length++;
+    }
+    close(fd);
+    return length;
+  }
