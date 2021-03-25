@@ -83,6 +83,18 @@ argstr(int n, char *buf, int max)
   return fetchstr(addr, buf, max);
 }
 
+int
+argptr(int n, char **pp, int size)
+{
+  int i;
+  struct proc *proc = myproc();
+  if(argint(n, &i) < 0)
+      return -1;
+  if((uint)i >= proc->sz || (uint)i+size > proc->sz)
+      return -1;
+  return fetchstr(i, *pp, size);
+}
+
 extern uint64 sys_chdir(void);
 extern uint64 sys_close(void);
 extern uint64 sys_dup(void);
@@ -105,6 +117,7 @@ extern uint64 sys_wait(void);
 extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
 extern uint64 sys_trace(void);
+extern uint64 sys_wait_stat(void);
 
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -129,7 +142,10 @@ static uint64 (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_trace]   sys_trace,
+[SYS_wait_stat]   sys_wait_stat,
 };
+
+char* SyscallNames[23] ={"fork", "exit", "wait", "pipe", "read", "kill", "exec", "fstat", "chdir", "dup", "getpid", "sbrk", "sleep", "uptime", "open", "write", "mknod", "unlink", "link","mkdir", "close", "trace", "wait_stat"};
 
 void
 syscall(void)
@@ -138,12 +154,17 @@ syscall(void)
   struct proc *p = myproc();
 
   num = p->trapframe->a7;
+ // int arg=  num = p->trapframe->a6;
+
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     p->trapframe->a0 = syscalls[num]();
     // here
     acquire(&p->lock);
-    if(p->traceArray[num-1] == 1){
-      printf("%d: syscall %s -> \n", p->pid, );
+    if((p->traceArray[num-1] == 1) && ((num==1) || (num==6) || (num==12) || (num==16))) {
+      printf("%d: syscall %s %d-> %d \n", num, SyscallNames[num-1], p->trapframe->a0);
+    }
+    else if(p->traceArray[num-1] == 1){
+       printf("%d: syscall %s -> %d \n", num, SyscallNames[num-1], p->trapframe->a0);
     }
     release(&p->lock);
 

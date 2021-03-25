@@ -7,7 +7,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "syscall.h"
-
+#include "pref.h"
 
 uint64
 sys_exit(void)
@@ -109,4 +109,15 @@ sys_trace(void)
     return -1;
   trace(mask, pid);
   return 0;
+}
+
+uint64
+sys_wait_stat(void)
+{
+   char *status,*performance;
+   if(argptr(0, &status, 4) < 0)
+    return -1;
+   if(argptr(1, &performance, sizeof(struct perf)) < 0)
+    return -1;
+  return wait_stat((int*)(status), (struct perf*)(performance));
 }

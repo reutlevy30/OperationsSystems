@@ -6,6 +6,7 @@
 #include "proc.h"
 #include "defs.h"
 #include "syscall.h"
+#include "pref.h"
 
 struct cpu cpus[NCPU];
 
@@ -675,4 +676,55 @@ trace(int mask, int pid)
   // for(int i=0; i<22; i++){
   //   printf("%d", p->traceArray[i]);
   // }
+}
+
+int
+wait_stat(int* status,  struct perf * performance){
+  struct proc *np;
+  int havekids, pid;
+  struct proc *p = myproc();
+
+  acquire(&wait_lock);
+
+  for(;;){
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for(np = proc; np < &proc[NPROC]; np++){
+      if(np->parent == p){
+        // make sure the child isn't still in exit() or swtch().
+        acquire(&np->lock);
+
+        havekids = 1;
+        if(np->state == ZOMBIE){
+          // Found one.
+          pid = np->pid;
+          if(*status != 0 && copyout(p->pagetable, *status, (char *)&np->xstate,
+                                  sizeof(np->xstate)) < 0) {
+            release(&np->lock);
+            release(&wait_lock);
+            return -1;
+          }
+          performance->retime = np->retime;
+          performance->rutime = np->rutime;
+          performance->stime = np->stime;
+          performance->ttime = np->ttime;
+          performance->ctime = np->ctime;
+          freeproc(np);
+          release(&np->lock);
+          release(&wait_lock);
+          return pid;
+        }
+        release(&np->lock);
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || p->killed){
+      release(&wait_lock);
+      return -1;
+    }
+    
+    // Wait for a child to exit.
+    sleep(p, &wait_lock);  //DOC: wait-sleep
+  }
 }
