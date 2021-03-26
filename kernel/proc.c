@@ -7,6 +7,10 @@
 #include "defs.h"
 #include "syscall.h"
 #include "pref.h"
+#include "trap.c"
+
+// #define SystemcallsNumber  23
+
 
 struct cpu cpus[NCPU];
 
@@ -121,6 +125,14 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  //changed
+  p->ctime = ticks;
+  p->stime = 0;
+  p->retime = 0;
+  p->rutime = 0;
+  p->bursttime = 0;
+  //till here
+
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -245,6 +257,7 @@ userinit(void)
   p->cwd = namei("/");
 
   p->state = RUNNABLE;
+  p->runnableTime = ticks;
 
   release(&p->lock);
 }
@@ -315,6 +328,7 @@ fork(void)
 
   acquire(&np->lock);
   np->state = RUNNABLE;
+  p->runnableTime = ticks;
   release(&np->lock);
 
   return pid;
@@ -371,8 +385,21 @@ exit(int status)
   acquire(&p->lock);
 
   p->xstate = status;
-  p->state = ZOMBIE;
+  if(p->state == SLEEPING){
+    p->stime = p->stime + (ticks - p->ZzzTime);
+  }
+  // NOT SHURE
+  else if(p->state == RUNNABLE){
+    p->retime = p->retime + (ticks - p->runnableTime);
+  }
+  // TILL HERE
+  else if(p->state == RUNNING){
+    p->rutime = p->rutime + (ticks - p->runningTime);
+  }
 
+  p->state = ZOMBIE;
+  p->ttime = ticks; //update terminate time
+  
   release(&wait_lock);
 
   // Jump into the scheduler, never to return.
@@ -454,6 +481,8 @@ scheduler(void)
         // to release its lock and then reacquire it
         // before jumping back to us.
         p->state = RUNNING;
+        p->retime = p->retime + (ticks - p->runnableTime); //update rtime of the precoss
+        p->runningTime = ticks;
         c->proc = p;
         swtch(&c->context, &p->context);
 
@@ -500,6 +529,8 @@ yield(void)
   struct proc *p = myproc();
   acquire(&p->lock);
   p->state = RUNNABLE;
+  p->rutime = p->rutime + (ticks - t->runningTime); //move from running to runnable
+  p->runnableTime = ticks;
   sched();
   release(&p->lock);
 }
@@ -544,7 +575,20 @@ sleep(void *chan, struct spinlock *lk)
 
   // Go to sleep.
   p->chan = chan;
+
+  
+  // NOT SHURE
+  if(p->state == RUNNABLE){
+    p->retime = p->retime + (ticks - p->runnableTime);
+  }
+  // TILL HERE
+  else if(p->state == RUNNING){
+    p->rutime = p->rutime + (ticks - p->runningTime);
+  }
+
   p->state = SLEEPING;
+  p->ZzzTime = ticks; 
+
 
   sched();
 
@@ -568,6 +612,8 @@ wakeup(void *chan)
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
         p->state = RUNNABLE;
+        p->stime = p->stime + (ticks-(p->ZzzTime)); //update the stime
+        p->runnableTime = ticks; 
       }
       release(&p->lock);
     }
@@ -589,6 +635,8 @@ kill(int pid)
       if(p->state == SLEEPING){
         // Wake process from sleep().
         p->state = RUNNABLE;
+        p->stime = p->stime + (ticks - p->ZzzTime);
+        p->runnableTime = ticks;
       }
       release(&p->lock);
       return 0;
@@ -665,17 +713,20 @@ trace(int mask, int pid)
     acquire(&p->lock);
     if(p->pid == pid){
       p->traceFlag = 1;
-      for(int i=1; i<=22; i++){
+      for(int i=1; i<=22; i++){ //TODO to change to 23
         int k= (mask >> i ) & 1;
         p->traceArray[i] = k;
-        printf("%d", k);
       }
-    }
+    // printf("the real num is : %d\n", p->traceArray[6]);
+      // for(int i=1; i<=22; i++){
+      //   printf("the cell is %d", p->traceArray[i]);
+      // }
     release(&p->lock);
   }
   // for(int i=0; i<22; i++){
   //   printf("%d", p->traceArray[i]);
   // }
+}
 }
 
 int
@@ -704,11 +755,13 @@ wait_stat(int* status,  struct perf * performance){
             release(&wait_lock);
             return -1;
           }
+          //NOT SURE
           performance->retime = np->retime;
           performance->rutime = np->rutime;
           performance->stime = np->stime;
           performance->ttime = np->ttime;
           performance->ctime = np->ctime;
+          //TILL NOW
           freeproc(np);
           release(&np->lock);
           release(&wait_lock);

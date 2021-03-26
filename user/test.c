@@ -7,6 +7,6 @@
 int main(int argc, char** argv){
     fprintf(2, "hello\n");
     trace(1 << 6, 2);
-    kill(2);
+    kill(3);
     exit(0);
 }

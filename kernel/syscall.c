@@ -152,23 +152,25 @@ syscall(void)
 {
   int num;
   struct proc *p = myproc();
-
   num = p->trapframe->a7;
- // int arg=  num = p->trapframe->a6;
-
+  //The arguments
+  int arg = 0;
+  argint(0, &arg);
+  // acquire(&p->lock);
+  // if(p->pid == 2){
+  //   printf("the num is : %d\n", p->traceArray[5]);
+  // }
+  // release(&p->lock);
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     p->trapframe->a0 = syscalls[num]();
-    // here
-    acquire(&p->lock);
-    if((p->traceArray[num-1] == 1) && ((num==1) || (num==6) || (num==12) || (num==16))) {
-      printf("%d: syscall %s %d-> %d \n", num, SyscallNames[num-1], p->trapframe->a0);
+    // The system calls KILL/FORK/SBRK
+    if((p->traceArray[num] == 1) && ((num==1) || (num==6) || (num==12))) {
+      printf("%d: syscall %s %d-> %d \n", num, SyscallNames[num-1], arg, p->trapframe->a0);
     }
-    else if(p->traceArray[num-1] == 1){
+    // The rest system calls
+    else if(p->traceArray[num] == 1){
        printf("%d: syscall %s -> %d \n", num, SyscallNames[num-1], p->trapframe->a0);
     }
-    release(&p->lock);
-
-    // here
   } else {
     printf("%d %s: unknown sys call %d\n",
             p->pid, p->name, num);

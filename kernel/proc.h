@@ -96,10 +96,13 @@ struct proc {
   int traceFlag;               // If non-zero, trace this proc
   int ctime;                   // process creation time
   int ttime;                   // process creation time
-  int stime;                   //  the total time the process spent in the SLEEPING state.
+  int stime;                   // the total time the process spent in the SLEEPING state.
   int retime;                 //  the total time the process spent in the RUNNABLE state.
   int rutime;                 //  the total time the process spent in the RUNNING state.
   float bursttime;            //  approximate estimated burst time
+  uint ZzzTime;               //  process is sleeping now, dont wake him up
+  uint runnableTime;          // process is runnable now
+  uint runningTime;            // process is running now
 
   // proc_tree_lock must be held when using this:
   struct proc *parent;         // Parent process
