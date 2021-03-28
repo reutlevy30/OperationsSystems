@@ -5,8 +5,7 @@
 #include "kernel/syscall.h"
 
 int main(int argc, char** argv){
-    fprintf(2, "hello\n");
-    trace(1 << 6, 2);
-    kill(3);
+    int mask=(1<< 1)|( 1<< 6)| ( 1<< 12) | ( 1<< 16);
+    trace(mask, 2);
     exit(0);
 }

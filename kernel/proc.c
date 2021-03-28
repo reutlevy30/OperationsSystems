@@ -126,6 +126,8 @@ found:
   p->pid = allocpid();
   p->state = USED;
   //changed
+  p->sysFlags = 0;
+  p->traceFlag = 0;
   p->ctime = ticks;
   p->stime = 0;
   p->retime = 0;
@@ -748,23 +750,11 @@ trace(int mask, int pid)
 {
   struct proc *p;
   for(p = proc; p < &proc[NPROC]; p++){
-    acquire(&p->lock);
     if(p->pid == pid){
       p->traceFlag = 1;
-      for(int i=1; i<=22; i++){ //TODO to change to 23
-        int k= (mask >> i ) & 1;
-        p->traceArray[i] = k;
+      p->sysFlags = mask;
       }
-    // printf("the real num is : %d\n", p->traceArray[6]);
-      // for(int i=1; i<=22; i++){
-      //   printf("the cell is %d", p->traceArray[i]);
-      // }
-    release(&p->lock);
   }
-  // for(int i=0; i<22; i++){
-  //   printf("%d", p->traceArray[i]);
-  // }
-}
 }
 
 int
