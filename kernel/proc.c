@@ -7,7 +7,7 @@
 #include "defs.h"
 #include "syscall.h"
 #include "pref.h"
-#include "trap.c"
+#define NULL 0
 
 // #define SystemcallsNumber  23
 
@@ -473,7 +473,7 @@ scheduler(void)
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
-
+  //#ifdef DEFUALT
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
@@ -492,6 +492,43 @@ scheduler(void)
       }
       release(&p->lock);
     }
+//#endif
+/*
+//#ifdef SRT
+    struct proc* min=NULL;
+
+    for(p = proc; p < &proc[NPROC]; p++) {
+      acquire(&p->lock);
+      if(p->state == RUNNABLE) {
+
+        if(min==NULL){
+          min=p;
+        }
+        else if((p!=NULL) && min->bursttime>min->bursttime){
+          min=p;
+        }
+      }
+        release(&p->lock);
+    }
+
+    if(min!=NULL){
+        p=min;
+          acquire(&p->lock);
+        // Switch to chosen process.  It is the process's job
+        // to release its lock and then reacquire it
+        // before jumping back to us.
+        p->state = RUNNING;
+        p->retime = p->retime + (ticks - p->runnableTime); //update rtime of the precoss
+        p->runningTime = ticks;
+        c->proc = p;
+        swtch(&c->context, &p->context);
+
+        // Process is done running for now.
+        // It should have changed its p->state before coming back.
+        c->proc = 0;
+         release(&p->lock);
+    }
+//#endif */
   }
 }
 
@@ -529,8 +566,9 @@ yield(void)
   struct proc *p = myproc();
   acquire(&p->lock);
   p->state = RUNNABLE;
-  p->rutime = p->rutime + (ticks - t->runningTime); //move from running to runnable
+  p->rutime = p->rutime + (ticks - p->runningTime); //move from running to runnable
   p->runnableTime = ticks;
+  p->bursttime= 0;
   sched();
   release(&p->lock);
 }
