@@ -114,10 +114,27 @@ sys_trace(void)
 uint64
 sys_wait_stat(void)
 {
-   char *status,*performance;
-   if(argptr(0, &status, 4) < 0)
-    return -1;
-   if(argptr(1, &performance, sizeof(struct perf)) < 0)
-    return -1;
+  
+   int *status,*performance;
+   if(argaddr(0, (void*)&status) < 0)
+      return -1;
+   if(argaddr(1, (void*)&performance) < 0)
+      return -1;
+  
   return wait_stat((int*)(status), (struct perf*)(performance));
+} 
+/*
+uint64
+sys_wait_stat(void)
+{
+   uint64 status,addr;
+   if(argptr(0, &status, 4) < 0)
+      return -1;
+   printf("----------status-----%d",status);
+   if(argaddr(1, &addr) < 0)
+    return -1;
+  
+ // return wait_stat((int*)(status), (struct perf*)(performance));
+ return 0;
 }
+ */

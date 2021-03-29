@@ -135,7 +135,6 @@ found:
   p->bursttime = 0;
   //till here
 
-
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
@@ -759,12 +758,16 @@ trace(int mask, int pid)
 
 int
 wait_stat(int* status,  struct perf * performance){
+  printf("---------status2----------%p\n",status);
+  printf("---------performance2----------%p\n",performance);
   struct proc *np;
   int havekids, pid;
   struct proc *p = myproc();
-
-  acquire(&wait_lock);
-
+ // acquire(&wait_lock);
+ // int test=17;
+//  copyout(p->pagetable,(uint64)status,(char*)&test,sizeof(int *));
+  struct perf* perf_new=(struct perf *)kalloc();
+  
   for(;;){
     // Scan through table looking for exited children.
     havekids = 0;
@@ -774,21 +777,25 @@ wait_stat(int* status,  struct perf * performance){
         acquire(&np->lock);
 
         havekids = 1;
+        
         if(np->state == ZOMBIE){
           // Found one.
           pid = np->pid;
-          if(*status != 0 && copyout(p->pagetable, *status, (char *)&np->xstate,
-                                  sizeof(np->xstate)) < 0) {
+                    //NOT SURE
+          perf_new->retime = np->retime;
+          perf_new->rutime = np->rutime;
+          perf_new->stime = np->stime;
+          perf_new->ttime = np->ttime;
+          perf_new->ctime = np->ctime;
+          int copyperf= copyout(p->pagetable,(uint64)performance,(char *)perf_new,sizeof(struct perf));
+          int copystat= copyout(p->pagetable, *status, (char *)&np->xstate, sizeof(np->xstate));
+          if(*status != 0  && (copyperf<0 || copystat<0))
+          {
             release(&np->lock);
             release(&wait_lock);
             return -1;
           }
-          //NOT SURE
-          performance->retime = np->retime;
-          performance->rutime = np->rutime;
-          performance->stime = np->stime;
-          performance->ttime = np->ttime;
-          performance->ctime = np->ctime;
+
           //TILL NOW
           freeproc(np);
           release(&np->lock);
@@ -807,5 +814,7 @@ wait_stat(int* status,  struct perf * performance){
     
     // Wait for a child to exit.
     sleep(p, &wait_lock);  //DOC: wait-sleep
+  //  copyout(p->pagetable,(un)performance,(char *)perf_new,sizeof(int *));
   }
+
 }
