@@ -8,5 +8,5 @@ int ttime;
 int stime;
 int retime;
 int rutime;
-float bursttime;
+int average_bursttime;
 };

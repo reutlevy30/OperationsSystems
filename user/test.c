@@ -13,7 +13,6 @@ int main(int argc, char** argv){
     printf("---------status-------%d\n",&status);
     wait_stat(&status,performace);
     printf("---------statussssss-------%d\n",status);
-    printf("---------perfff-------%d\n",performace->ctime);
  //   printf("%s","helllllllllllo\n");
     exit(0);
 }

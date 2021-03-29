@@ -132,7 +132,7 @@ found:
   p->stime = 0;
   p->retime = 0;
   p->rutime = 0;
-  p->bursttime = 0;
+  p->average_bursttime = 0;
   //till here
 
   // Allocate a trapframe page.
@@ -569,7 +569,7 @@ yield(void)
   p->state = RUNNABLE;
   p->rutime = p->rutime + (ticks - p->runningTime); //move from running to runnable
   p->runnableTime = ticks;
-  p->bursttime= 0;
+  p->average_bursttime= 0;
   sched();
   release(&p->lock);
 }
@@ -615,7 +615,6 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
 
-  
   // NOT SHURE
   if(p->state == RUNNABLE){
     p->retime = p->retime + (ticks - p->runnableTime);
@@ -763,11 +762,11 @@ wait_stat(int* status,  struct perf * performance){
   struct proc *np;
   int havekids, pid;
   struct proc *p = myproc();
- // acquire(&wait_lock);
+  acquire(&wait_lock);
  // int test=17;
 //  copyout(p->pagetable,(uint64)status,(char*)&test,sizeof(int *));
   struct perf* perf_new=(struct perf *)kalloc();
-  
+  copyout(p->pagetable,(uint64)performance,(char *)perf_new,sizeof(struct perf));
   for(;;){
     // Scan through table looking for exited children.
     havekids = 0;

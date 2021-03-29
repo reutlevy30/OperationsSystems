@@ -99,7 +99,7 @@ struct proc {
   int stime;                   // the total time the process spent in the SLEEPING state.
   int retime;                 //  the total time the process spent in the RUNNABLE state.
   int rutime;                 //  the total time the process spent in the RUNNING state.
-  float bursttime;            //  approximate estimated burst time
+  int average_bursttime;      //  approximate estimated burst time
   uint ZzzTime;               //  process is sleeping now, dont wake him up
   uint runnableTime;          // process is runnable now
   uint runningTime;            // process is running now
