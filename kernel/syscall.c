@@ -82,7 +82,7 @@ argstr(int n, char *buf, int max)
     return -1;
   return fetchstr(addr, buf, max);
 }
-
+/*
 int
 argptr(int n, char **pp, int size)
 {
@@ -94,7 +94,7 @@ argptr(int n, char **pp, int size)
      return -1;
 //  printf("---------n isss---%d-------",n);
   return fetchstr(i, *pp, size);
-}
+} */
 
 extern uint64 sys_chdir(void);
 extern uint64 sys_close(void);
