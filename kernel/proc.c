@@ -489,8 +489,8 @@ scheduler(void)
       scheduler_default(c);
     #elif SRT
       scheduler_SRT(c);
-    // #elif CFSD
-    //   scheduler_CFSD(c);
+    #elif CFSD
+      scheduler_CFSD(c);
     #endif
   }
 }
@@ -507,26 +507,25 @@ scheduler_default(struct cpu *c)
 {
   // printf("HI AGAIN IM DEFAULT OR FCFS\n");
   struct proc *p;
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        p->retime = p->retime + (ticks - p->runnableTime); //update rtime of the precoss
-        p->runningTime = ticks;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-      }
-      release(&p->lock);
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state == RUNNABLE) {
+      // Switch to chosen process.  It is the process's job
+      // to release its lock and then reacquire it
+      // before jumping back to us.
+      p->state = RUNNING;
+      p->retime = p->retime + (ticks - p->runnableTime); //update rtime of the precoss
+      p->runningTime = ticks;
+      c->proc = p;
+      swtch(&c->context, &p->context);
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
     }
+    release(&p->lock);
   }
-//}
+}
+
 
 void
 scheduler_SRT(struct cpu *c)
@@ -549,16 +548,11 @@ scheduler_SRT(struct cpu *c)
   if(min!=NULL){
     p=min;
     acquire(&p->lock);
-    // Switch to chosen process.  It is the process's job
-    // to release its lock and then reacquire it
-    // before jumping back to us.
     p->state = RUNNING;
     p->retime = p->retime + (ticks - p->runnableTime); //update rtime of the precoss
     p->runningTime = ticks;
     c->proc = p;
     swtch(&c->context, &p->context);
-    // Process is done running for now.
-    // It should have changed its p->state before coming back.
     c->proc = 0;
     release(&p->lock);
   }
@@ -567,7 +561,32 @@ scheduler_SRT(struct cpu *c)
 void
 scheduler_CFSD(struct cpu *c)
 {
-
+  // printf("HI IM CFSD\n");
+  struct proc *p;
+  struct proc *min = NULL;
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state == RUNNABLE) {
+      if(min==NULL){
+        min=p;
+      }
+      else if((p!=NULL) && ((min->run_time_ratio) > (p->run_time_ratio))){
+        min=p;
+      }
+    }
+    release(&p->lock);
+  }
+  if(min!=NULL){
+    p=min;
+    acquire(&p->lock);
+    p->state = RUNNING;
+    p->retime = p->retime + (ticks - p->runnableTime); //update rtime of the precoss
+    p->runningTime = ticks;
+    c->proc = p;
+    swtch(&c->context, &p->context);
+    c->proc = 0;
+    release(&p->lock);
+  } 
 }
 
 void
