@@ -128,11 +128,14 @@ found:
   //changed
   p->sysFlags = 0;
   p->traceFlag = 0;
+
   p->ctime = ticks;
   p->stime = 0;
   p->retime = 0;
   p->rutime = 0;
   p->average_bursttime = 0;
+
+  p->priority = NORMAL_PRIORITY;
   //till here
 
   // Allocate a trapframe page.
@@ -297,6 +300,8 @@ fork(void)
     return -1;
   }
 
+  np->rutime = QUANTUM;
+
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
     freeproc(np);
@@ -305,11 +310,17 @@ fork(void)
   }
   np->sz = p->sz;
 
+  // Copy priority of parent to child.
+  np->priority = p->priority;
+
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
+
+  // Reset the bursttime
+  np->average_bursttime = QUANTUM*ticks;
 
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)
@@ -467,14 +478,35 @@ wait(uint64 addr)
 void
 scheduler(void)
 {
-  struct proc *p;
   struct cpu *c = mycpu();
-  
   c->proc = 0;
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
-  //#ifdef DEFUALT
+    #ifdef DEFAULT
+      scheduler_default(c);
+    #elif FCFS
+      scheduler_default(c);
+    #elif SRT
+      scheduler_SRT(c);
+    // #elif CFSD
+    //   scheduler_CFSD(c);
+    #endif
+  }
+}
+
+// Switch to scheduler.  Must hold only p->lock
+// and have changed proc->state. Saves and restores
+// intena because intena is a property of this
+// kernel thread, not this CPU. It should
+// be proc->intena and proc->noff, but that would
+// break in the few places where a lock is held but
+// there's no process.
+void
+scheduler_default(struct cpu *c)
+{
+  // printf("HI AGAIN IM DEFAULT OR FCFS\n");
+  struct proc *p;
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
@@ -493,53 +525,51 @@ scheduler(void)
       }
       release(&p->lock);
     }
-//#endif
-/*
-//#ifdef SRT
-    struct proc* min=NULL;
+  }
+//}
 
-    for(p = proc; p < &proc[NPROC]; p++) {
-      acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-
-        if(min==NULL){
-          min=p;
-        }
-        else if((p!=NULL) && min->bursttime>min->bursttime){
-          min=p;
-        }
+void
+scheduler_SRT(struct cpu *c)
+{
+  // printf("HI IM SRT\n");
+  struct proc *p;
+  struct proc *min = NULL;
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state == RUNNABLE) {
+      if(min==NULL){
+        min=p;
       }
-        release(&p->lock);
+      else if((p!=NULL) && ((min->average_bursttime) > (p->average_bursttime))){
+        min=p;
+      }
     }
-
-    if(min!=NULL){
-        p=min;
-          acquire(&p->lock);
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        p->retime = p->retime + (ticks - p->runnableTime); //update rtime of the precoss
-        p->runningTime = ticks;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
-         release(&p->lock);
-    }
-//#endif */
+    release(&p->lock);
+  }
+  if(min!=NULL){
+    p=min;
+    acquire(&p->lock);
+    // Switch to chosen process.  It is the process's job
+    // to release its lock and then reacquire it
+    // before jumping back to us.
+    p->state = RUNNING;
+    p->retime = p->retime + (ticks - p->runnableTime); //update rtime of the precoss
+    p->runningTime = ticks;
+    c->proc = p;
+    swtch(&c->context, &p->context);
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    c->proc = 0;
+    release(&p->lock);
   }
 }
 
-// Switch to scheduler.  Must hold only p->lock
-// and have changed proc->state. Saves and restores
-// intena because intena is a property of this
-// kernel thread, not this CPU. It should
-// be proc->intena and proc->noff, but that would
-// break in the few places where a lock is held but
-// there's no process.
+void
+scheduler_CFSD(struct cpu *c)
+{
+
+}
+
 void
 sched(void)
 {
@@ -569,7 +599,7 @@ yield(void)
   p->state = RUNNABLE;
   p->rutime = p->rutime + (ticks - p->runningTime); //move from running to runnable
   p->runnableTime = ticks;
-  p->average_bursttime= 0;
+  p->average_bursttime= (ALPHA * p->rutime) + ((100-ALPHA) * p->average_bursttime)/100;
   sched();
   release(&p->lock);
 }
@@ -616,16 +646,17 @@ sleep(void *chan, struct spinlock *lk)
   p->chan = chan;
 
   // NOT SHURE
-  if(p->state == RUNNABLE){
-    p->retime = p->retime + (ticks - p->runnableTime);
-  }
+  // if(p->state == RUNNABLE){
+  //   p->retime = p->retime + (ticks - p->runnableTime);
+  // }
   // TILL HERE
-  else if(p->state == RUNNING){
+ if(p->state == RUNNING){
     p->rutime = p->rutime + (ticks - p->runningTime);
   }
 
   p->state = SLEEPING;
   p->ZzzTime = ticks; 
+  p->average_bursttime= (ALPHA * p->rutime) + ((100-ALPHA) * p->average_bursttime)/100;
 
 
   sched();
@@ -743,7 +774,7 @@ procdump(void)
   }
 }
 
-void
+int
 trace(int mask, int pid)
 {
   struct proc *p;
@@ -751,22 +782,21 @@ trace(int mask, int pid)
     if(p->pid == pid){
       p->traceFlag = 1;
       p->sysFlags = mask;
-      }
+    }
   }
+  return 0;
+  //check valid pid and mask, if wrong- return -1, else 0
 }
 
 int
-wait_stat(int* status,  struct perf * performance){
-  printf("---------status2----------%p\n",status);
-  printf("---------performance2----------%p\n",performance);
+wait_stat(int* status,struct perf * performance)
+{
   struct proc *np;
   int havekids, pid;
   struct proc *p = myproc();
-  acquire(&wait_lock);
- // int test=17;
-//  copyout(p->pagetable,(uint64)status,(char*)&test,sizeof(int *));
   struct perf* perf_new=(struct perf *)kalloc();
-  copyout(p->pagetable,(uint64)performance,(char *)perf_new,sizeof(struct perf));
+  acquire(&wait_lock);
+
   for(;;){
     // Scan through table looking for exited children.
     havekids = 0;
@@ -776,26 +806,22 @@ wait_stat(int* status,  struct perf * performance){
         acquire(&np->lock);
 
         havekids = 1;
-        
         if(np->state == ZOMBIE){
           // Found one.
           pid = np->pid;
-                    //NOT SURE
-          perf_new->retime = np->retime;
-          perf_new->rutime = np->rutime;
-          perf_new->stime = np->stime;
-          perf_new->ttime = np->ttime;
-          perf_new->ctime = np->ctime;
-          int copyperf= copyout(p->pagetable,(uint64)performance,(char *)perf_new,sizeof(struct perf));
-          int copystat= copyout(p->pagetable, *status, (char *)&np->xstate, sizeof(np->xstate));
-          if(*status != 0  && (copyperf<0 || copystat<0))
-          {
+          perf_new->stime= np->stime;
+          perf_new->ctime= np->ctime;
+          perf_new->retime= np->retime;
+          perf_new->ttime= np->ttime;
+          perf_new->rutime= np->rutime;
+          int copy_perf= copyout(p->pagetable,(uint64)performance,(char *)perf_new, sizeof(struct perf));
+          int copy_stat= copyout(p->pagetable, (uint64)status, (char *)&np->xstate,sizeof(np->xstate));
+         // printf("hellooo %d\n",np->stime);
+          if((uint64)status != 0 && copy_stat<0 && copy_perf<0) {
             release(&np->lock);
             release(&wait_lock);
             return -1;
           }
-
-          //TILL NOW
           freeproc(np);
           release(&np->lock);
           release(&wait_lock);
@@ -813,7 +839,37 @@ wait_stat(int* status,  struct perf * performance){
     
     // Wait for a child to exit.
     sleep(p, &wait_lock);  //DOC: wait-sleep
-  //  copyout(p->pagetable,(un)performance,(char *)perf_new,sizeof(int *));
   }
+}
 
+int
+set_priority(int priority)
+{
+  struct proc *p = myproc();
+  int decay_factor = appropriate_decay_factor(priority);
+  if (decay_factor != 0){
+    p->decay_factor = decay_factor;
+    p->priority = priority;
+    p->run_time_ratio = (p->rutime * p->decay_factor) / (p->rutime + p->stime);
+    return 0;
+  }
+  else return -1;
+}
+
+int
+appropriate_decay_factor(int priority)
+{
+  int decay_factor;
+  if(priority==1)
+    decay_factor = 1;
+  else if (priority==2)
+    decay_factor = 3;
+  else if (priority==3)
+    decay_factor = 5;
+  else if (priority==4)
+    decay_factor = 7;
+  else if (priority==5)
+    decay_factor = 25;
+  else decay_factor = 0;
+  return decay_factor;  
 }

@@ -12,4 +12,9 @@
 #define FSSIZE       1000  // size of file system in blocks
 #define MAXPATH      128   // maximum file path name
 #define QUANTUM      5
-#define ALPHA        QUANTUM*100
+#define ALPHA        50
+#define TEST_HIGH_PRIORITY      1   
+#define HIGH_PRIORITY           2
+#define NORMAL_PRIORITY         3
+#define LOW_PRIORITY            4
+#define TEST_LOW_PRIORITY       5

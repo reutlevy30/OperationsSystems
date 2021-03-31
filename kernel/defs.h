@@ -106,8 +106,13 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
-void            trace(int mask, int pid);
+int             trace(int mask, int pid);
 int             wait_stat(int* status, struct perf * performance);
+int             set_priority(int priority);
+int             appropriate_decay_factor(int priority);
+void            scheduler_default(struct cpu *c);
+void            scheduler_SRT(struct cpu *c);
+void            scheduler_CFSD(struct cpu *c);
 
 // swtch.S
 void            swtch(struct context*, struct context*);

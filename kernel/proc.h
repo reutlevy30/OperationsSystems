@@ -92,17 +92,20 @@ struct proc {
   int killed;                  // If non-zero, have been killed
   int xstate;                  // Exit status to be returned to parent's wait
   int pid;                     // Process ID
-  int sysFlags;          // If there is a cell with non-zero value , trace after that syscall
+  int sysFlags;                // If there is a cell with non-zero value , trace after that syscall
   int traceFlag;               // If non-zero, trace this proc
   int ctime;                   // process creation time
   int ttime;                   // process creation time
   int stime;                   // the total time the process spent in the SLEEPING state.
-  int retime;                 //  the total time the process spent in the RUNNABLE state.
-  int rutime;                 //  the total time the process spent in the RUNNING state.
-  int average_bursttime;      //  approximate estimated burst time
-  uint ZzzTime;               //  process is sleeping now, dont wake him up
-  uint runnableTime;          // process is runnable now
+  int retime;                  // the total time the process spent in the RUNNABLE state.
+  int rutime;                  // the total time the process spent in the RUNNING state.
+  int average_bursttime;       // approximate estimated burst time
+  uint ZzzTime;                // process is sleeping now, dont wake him up
+  uint runnableTime;           // process is runnable now
   uint runningTime;            // process is running now
+  int priority;                // The priority of this process
+  int decay_factor;            // The decay factor according the priority
+  int run_time_ratio;          // The run time ratio of this process
 
   // proc_tree_lock must be held when using this:
   struct proc *parent;         // Parent process

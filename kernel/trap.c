@@ -8,6 +8,7 @@
 
 struct spinlock tickslock;
 uint ticks;
+uint ticksCount = 0;
 
 extern char trampoline[], uservec[], userret[];
 
@@ -76,9 +77,18 @@ usertrap(void)
   if(p->killed)
     exit(-1);
 
+  
+  #ifndef FCFS
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
-    yield();
+  if(which_dev == 2){
+    ticksCount++;
+    if(ticksCount == 5){
+      ticksCount=0;
+      yield();
+    }
+  }
+  #endif
+
 
   usertrapret();
 }
