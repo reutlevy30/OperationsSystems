@@ -7,7 +7,7 @@
 #include "defs.h"
 #include "syscall.h"
 #include "pref.h"
-#define NULL 0
+#include <limits.h>
 
 // #define SystemcallsNumber  23
 
@@ -530,22 +530,22 @@ scheduler_default(struct cpu *c)
 void
 scheduler_SRT(struct cpu *c)
 {
-  // printf("HI IM SRT\n");
+// printf("HI IM SRT\n");
   struct proc *p;
-  struct proc *min = NULL;
+  struct proc *min = 0;
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if(p->state == RUNNABLE) {
-      if(min==NULL){
+      if(min==0){
         min=p;
       }
-      else if((p!=NULL) && ((min->average_bursttime) > (p->average_bursttime))){
+      else if((p!=0) && ((min->average_bursttime) > (p->average_bursttime))){
         min=p;
       }
     }
     release(&p->lock);
   }
-  if(min!=NULL){
+  if(min!=0){
     p=min;
     acquire(&p->lock);
     p->state = RUNNING;
@@ -555,28 +555,28 @@ scheduler_SRT(struct cpu *c)
     swtch(&c->context, &p->context);
     c->proc = 0;
     release(&p->lock);
+  } 
   }
-}
 
 void
 scheduler_CFSD(struct cpu *c)
 {
   // printf("HI IM CFSD\n");
   struct proc *p;
-  struct proc *min = NULL;
+  struct proc *min = 0;
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if(p->state == RUNNABLE) {
-      if(min==NULL){
+      if(min==0){
         min=p;
       }
-      else if((p!=NULL) && ((min->run_time_ratio) > (p->run_time_ratio))){
+      else if((p!=0) && ((min->run_time_ratio) > (p->run_time_ratio))){
         min=p;
       }
     }
     release(&p->lock);
   }
-  if(min!=NULL){
+  if(min!=0){
     p=min;
     acquire(&p->lock);
     p->state = RUNNING;
@@ -675,7 +675,7 @@ sleep(void *chan, struct spinlock *lk)
 
   p->state = SLEEPING;
   p->ZzzTime = ticks; 
-  p->average_bursttime= (ALPHA * p->rutime) + ((100-ALPHA) * p->average_bursttime)/100;
+  p->average_bursttime= (ALPHA * (ticks-p->runningTime)) + ((100-ALPHA) * p->average_bursttime)/100;
 
 
   sched();
