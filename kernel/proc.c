@@ -532,21 +532,20 @@ scheduler_SRT(struct cpu *c)
 {
 // printf("HI IM SRT\n");
   struct proc *p;
-  struct proc *min = 0;
+  int min_burst=INT_MAX;
+  struct proc *minburstproc=0;
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if(p->state == RUNNABLE) {
-      if(min==0){
-        min=p;
-      }
-      else if((p!=0) && ((min->average_bursttime) > (p->average_bursttime))){
-        min=p;
+      if((min_burst) > (p->average_bursttime)){
+        min_burst=p->average_bursttime;
+        minburstproc=p;
       }
     }
     release(&p->lock);
   }
-  if(min!=0){
-    p=min;
+  if(minburstproc!=0){
+    p=minburstproc;
     acquire(&p->lock);
     p->state = RUNNING;
     p->retime = p->retime + (ticks - p->runnableTime); //update rtime of the precoss
@@ -554,8 +553,8 @@ scheduler_SRT(struct cpu *c)
     c->proc = p;
     swtch(&c->context, &p->context);
     c->proc = 0;
-    release(&p->lock);
-  } 
+    release(&p->lock); 
+    }
   }
 
 void
