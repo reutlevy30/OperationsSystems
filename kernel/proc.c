@@ -9,8 +9,6 @@
 #include "pref.h"
 #include <limits.h>
 
-// #define SystemcallsNumber  23
-
 
 struct cpu cpus[NCPU];
 
@@ -313,6 +311,10 @@ fork(void)
   // Copy priority of parent to child.
   np->priority = p->priority;
 
+  // Copy trace flag of parent to child
+  np->traceFlag = p->traceFlag;
+  np->sysFlags = p->sysFlags;
+
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
@@ -340,7 +342,7 @@ fork(void)
 
   acquire(&np->lock);
   np->state = RUNNABLE;
-  p->runnableTime = ticks;
+  np->runnableTime = ticks;
   release(&np->lock);
 
   return pid;
@@ -400,15 +402,12 @@ exit(int status)
   if(p->state == SLEEPING){
     p->stime = p->stime + (ticks - p->ZzzTime);
   }
-  // NOT SHURE
-  else if(p->state == RUNNABLE){
-    p->retime = p->retime + (ticks - p->runnableTime);
-  }
-  // TILL HERE
+  // else if(p->state == RUNNABLE){
+  //   p->retime = p->retime + (ticks - p->runnableTime);
+  // }
   else if(p->state == RUNNING){
     p->rutime = p->rutime + (ticks - p->runningTime);
   }
-
   p->state = ZOMBIE;
   p->ttime = ticks; //update terminate time
   
@@ -545,9 +544,6 @@ scheduler_SRT(struct cpu *c)
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if((p->state == RUNNABLE) && (p->pid==pid)) {
-      // Switch to chosen process.  It is the process's job
-      // to release its lock and then reacquire it
-      // before jumping back to us.
       p->state = RUNNING;
       p->retime = p->retime + (ticks - p->runnableTime); //update rtime of the precoss
       p->runningTime = ticks;
@@ -564,33 +560,64 @@ scheduler_SRT(struct cpu *c)
 void
 scheduler_CFSD(struct cpu *c)
 {
-  // printf("HI IM CFSD\n");
+  // printf("HI IM SRT\n");
   struct proc *p;
-  struct proc *min = 0;
+  int minratio=INT_MAX;
+  int pid=-1;
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
-    if(p->state == RUNNABLE) {
-      if(min==0){
-        min=p;
-      }
-      else if((p!=0) && ((min->run_time_ratio) > (p->run_time_ratio))){
-        min=p;
-      }
+    if((p->state == RUNNABLE) && (minratio>p->run_time_ratio)) {
+      minratio=p->run_time_ratio;
+      pid= p->pid;
     }
     release(&p->lock);
   }
-  if(min!=0){
-    p=min;
+  for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
-    p->state = RUNNING;
-    p->retime = p->retime + (ticks - p->runnableTime); //update rtime of the precoss
-    p->runningTime = ticks;
-    c->proc = p;
-    swtch(&c->context, &p->context);
-    c->proc = 0;
+    if((p->state == RUNNABLE) && (p->pid==pid)) {
+      p->state = RUNNING;
+      p->retime = p->retime + (ticks - p->runnableTime); //update rtime of the precoss
+      p->runningTime = ticks;
+      c->proc = p;
+      swtch(&c->context, &p->context);
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+    }
     release(&p->lock);
-  } 
+  }
 }
+
+// void
+// scheduler_CFSD(struct cpu *c)
+// {
+//   // printf("HI IM CFSD\n");
+//   struct proc *p;
+//   struct proc *min = 0;
+//   for(p = proc; p < &proc[NPROC]; p++) {
+//     acquire(&p->lock);
+//     if(p->state == RUNNABLE) {
+//       if(min==0){
+//         min=p;
+//       }
+//       else if((p!=0) && ((min->run_time_ratio) > (p->run_time_ratio))){
+//         min=p;
+//       }
+//     }
+//     release(&p->lock);
+//   }
+//   if(min!=0){
+//     p=min;
+//     acquire(&p->lock);
+//     p->state = RUNNING;
+//     p->retime = p->retime + (ticks - p->runnableTime); //update rtime of the precoss
+//     p->runningTime = ticks;
+//     c->proc = p;
+//     swtch(&c->context, &p->context);
+//     c->proc = 0;
+//     release(&p->lock);
+//   } 
+// }
 
 void
 sched(void)
@@ -667,11 +694,9 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
 
-  // NOT SHURE
-  // if(p->state == RUNNABLE){
-  //   p->retime = p->retime + (ticks - p->runnableTime);
-  // }
-  // TILL HERE
+  if(p->state == RUNNABLE){
+    p->retime = p->retime + (ticks - p->runnableTime);
+  }
  if(p->state == RUNNING){
     p->rutime = p->rutime + (ticks - p->runningTime);
   }
@@ -807,7 +832,7 @@ trace(int mask, int pid)
     }
   }
   return 0;
-  //check valid pid and mask, if wrong- return -1, else 0
+  //TO CHECK
 }
 
 int
@@ -836,6 +861,7 @@ wait_stat(int* status,struct perf * performance)
           perf_new->retime= np->retime;
           perf_new->ttime= np->ttime;
           perf_new->rutime= np->rutime;
+          perf_new->average_bursttime= np->average_bursttime;
           int copy_perf= copyout(p->pagetable,(uint64)performance,(char *)perf_new, sizeof(struct perf));
           int copy_stat= copyout(p->pagetable, (uint64)status, (char *)&np->xstate,sizeof(np->xstate));
          // printf("hellooo %d\n",np->stime);

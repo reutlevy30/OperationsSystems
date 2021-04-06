@@ -156,7 +156,8 @@ syscall(void)
   int num;
   struct proc *p = myproc();
 
-  //The arguments
+  //TO CHECK
+  //The arguments 
   int arg;
   argint(0, &arg);
 
