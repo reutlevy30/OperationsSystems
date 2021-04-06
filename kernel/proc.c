@@ -134,6 +134,7 @@ found:
   p->average_bursttime = 0;
 
   p->priority = NORMAL_PRIORITY;
+  p->decay_factor = 5;
   //till here
 
   // Allocate a trapframe page.
@@ -298,8 +299,6 @@ fork(void)
     return -1;
   }
 
-  np->rutime = QUANTUM;
-
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
     freeproc(np);
@@ -310,6 +309,9 @@ fork(void)
 
   // Copy priority of parent to child.
   np->priority = p->priority;
+  np->decay_factor = p->decay_factor;
+  np->run_time_ratio = p->run_time_ratio;
+
 
   // Copy trace flag of parent to child
   np->traceFlag = p->traceFlag;
@@ -322,7 +324,7 @@ fork(void)
   np->trapframe->a0 = 0;
 
   // Reset the bursttime
-  np->average_bursttime = QUANTUM*ticks;
+  np->average_bursttime = QUANTUM*100;
 
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)
@@ -825,14 +827,20 @@ int
 trace(int mask, int pid)
 {
   struct proc *p;
+  int foundPID = 0;
   for(p = proc; p < &proc[NPROC]; p++){
     if(p->pid == pid){
+      foundPID = 1;
       p->traceFlag = 1;
       p->sysFlags = mask;
     }
   }
+  // The other checks if successed
+  if (foundPID == 0)
+    return -1;
+  if(mask > (2^24))
+    return -1;
   return 0;
-  //TO CHECK
 }
 
 int
@@ -918,6 +926,6 @@ appropriate_decay_factor(int priority)
     decay_factor = 7;
   else if (priority==5)
     decay_factor = 25;
-  else decay_factor = 0;
+  else decay_factor = 0; //not valid
   return decay_factor;  
 }
