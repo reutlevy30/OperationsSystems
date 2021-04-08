@@ -106,6 +106,7 @@ struct proc {
   int priority;                // The priority of this process
   int decay_factor;            // The decay factor according the priority
   int run_time_ratio;          // The run time ratio of this process
+  int QueuePlace;              // The queue place of this current process
 
   // proc_tree_lock must be held when using this:
   struct proc *parent;         // Parent process

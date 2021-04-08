@@ -57,7 +57,7 @@
 
 
 
-// //-----TEST-3-----
+//-----TEST-3-----
 // int main(int argc, char** argv){
 //     int mask = 1<<6 | 1 <<16; //trace kill and write
 //     trace(mask, getpid());
@@ -139,4 +139,28 @@
 //     fprintf(1, "\n\tTurnaround time: %d\n", (performance->ttime - performance->ctime));
 // }
 // // ------------------------
+
+
+// // ------------TEST-5----
+int main(int argc, char** argv){
+int cpid=fork();
+    int* stat = (int*)malloc(sizeof(int));
+    struct perf* perf = (struct perf*)malloc(sizeof(perf));
+    if (cpid != 0){
+        int ret = wait_stat(stat,perf);
+        fprintf(2, "return value: %s %d\n", "wait_stat", ret);
+        fprintf(2,"Sleep: %d Running: %d Runnable: %d Status: %d Creation: %d Termination: %d Burst: %d\n",perf->stime,perf->rutime,perf->retime,*stat, perf->ctime, perf->ttime, perf->average_bursttime);
+    } else{
+        sleep(20);
+        mkdir("a");
+        mkdir("b");
+        mkdir("c");
+        mkdir("d");
+        mkdir("e");
+        mkdir("f");
+        sleep(10);
+    }
+    exit(0);
+}
+
 

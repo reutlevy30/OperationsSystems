@@ -17,6 +17,7 @@ struct proc proc[NPROC];
 struct proc *initproc;
 
 int nextpid = 1;
+uint GlobalQueuePlaceNumber = 0;
 struct spinlock pid_lock;
 
 extern void forkret(void);
@@ -52,6 +53,7 @@ procinit(void)
 {
   struct proc *p;
   
+  initlock(&QueueLock, "name");
   initlock(&pid_lock, "nextpid");
   initlock(&wait_lock, "wait_lock");
   for(p = proc; p < &proc[NPROC]; p++) {
@@ -123,6 +125,7 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+
   //changed
   p->sysFlags = 0;
   p->traceFlag = 0;
@@ -131,10 +134,12 @@ found:
   p->stime = 0;
   p->retime = 0;
   p->rutime = 0;
-  p->average_bursttime = 0;
+  p->average_bursttime = QUANTUM * 100;
 
   p->priority = NORMAL_PRIORITY;
   p->decay_factor = 5;
+
+  p->QueuePlace = -1;
   //till here
 
   // Allocate a trapframe page.
@@ -259,6 +264,12 @@ userinit(void)
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
+  // updating the initial QueuePlace value of this process
+  acquire(&QueueLock);
+  p->QueuePlace = GlobalQueuePlaceNumber;
+  GlobalQueuePlaceNumber++;
+  release(&QueueLock);
+
   p->state = RUNNABLE;
   p->runnableTime = ticks;
 
@@ -323,8 +334,6 @@ fork(void)
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
 
-  // Reset the bursttime
-  np->average_bursttime = QUANTUM*100;
 
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)
@@ -343,8 +352,16 @@ fork(void)
   release(&wait_lock);
 
   acquire(&np->lock);
+
+  acquire(&QueueLock);
+  np->QueuePlace = GlobalQueuePlaceNumber;
+  GlobalQueuePlaceNumber++;
+  release(&QueueLock);
+
   np->state = RUNNABLE;
   np->runnableTime = ticks;
+  // Reset the bursttime
+  np->average_bursttime = QUANTUM*100;
   release(&np->lock);
 
   return pid;
@@ -404,15 +421,16 @@ exit(int status)
   if(p->state == SLEEPING){
     p->stime = p->stime + (ticks - p->ZzzTime);
   }
-  // else if(p->state == RUNNABLE){
-  //   p->retime = p->retime + (ticks - p->runnableTime);
-  // }
+
   else if(p->state == RUNNING){
     p->rutime = p->rutime + (ticks - p->runningTime);
   }
   p->state = ZOMBIE;
   p->ttime = ticks; //update terminate time
   
+  p->average_bursttime= (ALPHA * (ticks-p->runningTime)) + ((100-ALPHA) * p->average_bursttime)/100;
+
+
   release(&wait_lock);
 
   // Jump into the scheduler, never to return.
@@ -487,7 +505,7 @@ scheduler(void)
     #ifdef DEFAULT
       scheduler_default(c);
     #elif FCFS
-      scheduler_default(c);
+      scheduler_FCFS(c);
     #elif SRT
       scheduler_SRT(c);
     #elif CFSD
@@ -506,7 +524,7 @@ scheduler(void)
 void
 scheduler_default(struct cpu *c)
 {
-  // printf("HI AGAIN IM DEFAULT OR FCFS\n");
+  // printf("HI AGAIN IM DEFAULT\n");
   struct proc *p;
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
@@ -527,6 +545,37 @@ scheduler_default(struct cpu *c)
   }
 }
 
+void
+scheduler_FCFS(struct cpu *c)
+{
+  // printf("HI IM FCFS\n");
+  struct proc *p;
+  int minQueuePlace = INT_MAX;
+  int pid = -1;
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->QueuePlace < minQueuePlace && p->QueuePlace != -1 && p->state == RUNNABLE) {
+      minQueuePlace = p->QueuePlace;
+      pid = p->pid;
+      // printf("PID: %d , QUEUE: %d\n", pid, minQueuePlace);
+    }
+    release(&p->lock);
+  }
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if((p->state == RUNNABLE) && (p->pid == pid)) {
+      p->state = RUNNING;
+      p->retime = p->retime + (ticks - p->runnableTime); //update rtime of the precoss
+      p->runningTime = ticks;
+      c->proc = p;
+      swtch(&c->context, &p->context);
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+    }
+    release(&p->lock);
+  }
+}
 
 void
 scheduler_SRT(struct cpu *c)
@@ -590,37 +639,6 @@ scheduler_CFSD(struct cpu *c)
   }
 }
 
-// void
-// scheduler_CFSD(struct cpu *c)
-// {
-//   // printf("HI IM CFSD\n");
-//   struct proc *p;
-//   struct proc *min = 0;
-//   for(p = proc; p < &proc[NPROC]; p++) {
-//     acquire(&p->lock);
-//     if(p->state == RUNNABLE) {
-//       if(min==0){
-//         min=p;
-//       }
-//       else if((p!=0) && ((min->run_time_ratio) > (p->run_time_ratio))){
-//         min=p;
-//       }
-//     }
-//     release(&p->lock);
-//   }
-//   if(min!=0){
-//     p=min;
-//     acquire(&p->lock);
-//     p->state = RUNNING;
-//     p->retime = p->retime + (ticks - p->runnableTime); //update rtime of the precoss
-//     p->runningTime = ticks;
-//     c->proc = p;
-//     swtch(&c->context, &p->context);
-//     c->proc = 0;
-//     release(&p->lock);
-//   } 
-// }
-
 void
 sched(void)
 {
@@ -647,10 +665,16 @@ yield(void)
 {
   struct proc *p = myproc();
   acquire(&p->lock);
+
+  acquire(&QueueLock);
+  p->QueuePlace = GlobalQueuePlaceNumber;
+  GlobalQueuePlaceNumber++;
+  release(&QueueLock);
+
   p->state = RUNNABLE;
   p->rutime = p->rutime + (ticks - p->runningTime); //move from running to runnable
   p->runnableTime = ticks;
-  p->average_bursttime= (ALPHA * p->rutime) + ((100-ALPHA) * p->average_bursttime)/100;
+  p->average_bursttime= (ALPHA * (ticks-p->runningTime)) + ((100-ALPHA) * p->average_bursttime)/100;
   sched();
   release(&p->lock);
 }
@@ -699,7 +723,7 @@ sleep(void *chan, struct spinlock *lk)
   if(p->state == RUNNABLE){
     p->retime = p->retime + (ticks - p->runnableTime);
   }
- if(p->state == RUNNING){
+  if(p->state == RUNNING){
     p->rutime = p->rutime + (ticks - p->runningTime);
   }
 
@@ -729,6 +753,12 @@ wakeup(void *chan)
     if(p != myproc()){
       acquire(&p->lock);
       if(p->state == SLEEPING && p->chan == chan) {
+
+        acquire(&QueueLock);
+        p->QueuePlace = GlobalQueuePlaceNumber;
+        GlobalQueuePlaceNumber++;
+        release(&QueueLock);
+
         p->state = RUNNABLE;
         p->stime = p->stime + (ticks-(p->ZzzTime)); //update the stime
         p->runnableTime = ticks; 
@@ -752,6 +782,12 @@ kill(int pid)
       p->killed = 1;
       if(p->state == SLEEPING){
         // Wake process from sleep().
+
+        acquire(&QueueLock);
+        p->QueuePlace = GlobalQueuePlaceNumber;
+        GlobalQueuePlaceNumber++;
+        release(&QueueLock);
+
         p->state = RUNNABLE;
         p->stime = p->stime + (ticks - p->ZzzTime);
         p->runnableTime = ticks;

@@ -111,6 +111,7 @@ int             wait_stat(int* status, struct perf * performance);
 int             set_priority(int priority);
 int             appropriate_decay_factor(int priority);
 void            scheduler_default(struct cpu *c);
+void            scheduler_FCFS(struct cpu *c);
 void            scheduler_SRT(struct cpu *c);
 void            scheduler_CFSD(struct cpu *c);
 
@@ -151,9 +152,11 @@ void            syscall();
 
 // trap.c
 extern uint     ticks;
+extern uint     GlobalQueuePlaceNumber;
 void            trapinit(void);
 void            trapinithart(void);
 extern struct spinlock tickslock;
+extern struct spinlock QueueLock;
 void            usertrapret(void);
 
 // uart.c
