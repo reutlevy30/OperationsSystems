@@ -12,6 +12,9 @@
 #define LIST  4
 #define BACK  5
 #define PATH "/path"
+#define SEEK_SET    0   
+#define SEEK_CUR    1   
+#define SEEK_END    2 
 
 #define MAXARGS 10
 
@@ -54,8 +57,8 @@ struct backcmd {
 int fork1(void);  // Fork but panics on failure.
 void panic(char*);
 struct cmd *parsecmd(char*);
-int getFileLength(char* path);
-int isFileExists(const char *filename);
+int getLength(char* path);
+int CheckFile(const char *filename);
 
 
 // Execute cmd.  Never returns.
@@ -87,33 +90,42 @@ runcmd(struct cmd *cmd)
     close(fd);
     
 
-    if (isFileExists(ecmd->argv[0])) {
-        exec(ecmd->argv[0], ecmd->argv);
-    } else {
-        int bufferLength = getFileLength(PATH);
+    if (!CheckFile(ecmd->argv[0])) {
         int fd = open(PATH, O_CREATE | O_RDWR);
-        char *buffer = malloc(bufferLength);
-        read(fd, buffer, bufferLength);
+        char *buffer = malloc(getLength(PATH));
+        read(fd, buffer, getLength(PATH));
         close(fd);
 
-        char *start = buffer;
-        char *end, *path;
+        char *begin = buffer, *end, *path;
         int cmdLength = strlen(ecmd->argv[0]);
-        while ((end = strchr(start, ':')) != 0) {
-            int pathLength = end - start;
+        while ((end = strchr(begin, ':')) != 0) {
+            int pathLength = end - begin;
             path = malloc(cmdLength + pathLength);
-            for (int i = 0; start[i] != ':'; i++) {
-                path[i] = start[i];
+            int i=0;
+            while (begin[i]!=':')
+            {
+              path[i] = begin[i];
+              i++;
             }
+            i=0;
+            while (i < cmdLength)
+            {
+              path[i + pathLength] = ecmd->argv[0][i];
+              i++;
+            }
+            
             for (int i = 0; i < cmdLength; i++) {
                 path[i + pathLength] = ecmd->argv[0][i];
             }
-            if (isFileExists(path)) {
+            if (CheckFile(path)) {
                 exec(path, ecmd->argv);
             }
-            start = end + 1;
+            begin = end + 1;
         }
-    }
+    } 
+    else {
+            exec(ecmd->argv[0], ecmd->argv);
+        }
     fprintf(2, "exec %s failed\n", ecmd->argv[0]);
     break;
 
@@ -531,7 +543,7 @@ nulterminate(struct cmd *cmd)
   return cmd;
 }
 
- int isFileExists(const char *filename) {
+ int CheckFile(const char *filename) {
       struct stat buffer;
       int exist;
       exist = stat(filename, &buffer);
@@ -543,15 +555,16 @@ nulterminate(struct cmd *cmd)
       }
   }
 
-  int getFileLength(char* path) {
-    int fd = open(path, O_RDONLY), length = 0;
-    char c;
-    if (fd < 0) {
-        return -1;
+  int getLength(char* path) {
+    int size = 0, fd=0;
+    if ((fd=open(path, O_RDONLY))> 0) {
+        char c;
+        while(read(fd, &c, 1) == 1) 
+            size++;
     }
-    while(read(fd, &c, 1) == 1) {
-        length++;
+    else {
+      size=-1;
     }
     close(fd);
-    return length;
+    return size;
   }
