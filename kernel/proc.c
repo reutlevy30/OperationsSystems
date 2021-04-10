@@ -881,7 +881,7 @@ wait_stat(int* status,struct perf * performance)
   struct proc *np;
   int havekids, pid;
   struct proc *p = myproc();
-  struct perf* perf_new=(struct perf *)kalloc();
+  struct perf* perf_temp=(struct perf *)kalloc();
   acquire(&wait_lock);
 
   for(;;){
@@ -896,16 +896,15 @@ wait_stat(int* status,struct perf * performance)
         if(np->state == ZOMBIE){
           // Found one.
           pid = np->pid;
-          perf_new->stime= np->stime;
-          perf_new->ctime= np->ctime;
-          perf_new->retime= np->retime;
-          perf_new->ttime= np->ttime;
-          perf_new->rutime= np->rutime;
-          perf_new->average_bursttime= np->average_bursttime;
-          int copy_perf= copyout(p->pagetable,(uint64)performance,(char *)perf_new, sizeof(struct perf));
+          perf_temp->stime= np->stime;
+          perf_temp->ctime= np->ctime;
+          perf_temp->retime= np->retime;
+          perf_temp->ttime= np->ttime;
+          perf_temp->rutime= np->rutime;
+          perf_temp->average_bursttime= np->average_bursttime;
+          int copy_perf= copyout(p->pagetable,(uint64)performance,(char *)perf_temp, sizeof(struct perf));
           int copy_stat= copyout(p->pagetable, (uint64)status, (char *)&np->xstate,sizeof(np->xstate));
-         // printf("hellooo %d\n",np->stime);
-          if((uint64)status != 0 && copy_stat<0 && copy_perf<0) {
+          if((uint64)status != 0 && (copy_stat<0 || copy_perf<0)) {
             release(&np->lock);
             release(&wait_lock);
             return -1;

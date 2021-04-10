@@ -114,10 +114,10 @@ sys_trace(void)
 uint64
 sys_wait_stat(void)
 {
-   int *status,*performance;
-   if(argaddr(0, (void*)&status) < 0)
+   uint64 status,performance;
+   if(argaddr(0, &status) < 0)
       return -1;
-   if(argaddr(1, (void*)&performance) < 0)
+   if(argaddr(1, &performance) < 0)
       return -1;
   
   return wait_stat((int*)(status), (struct perf*)(performance));
@@ -131,20 +131,3 @@ sys_set_priority(void)
     return -1;
   return set_priority(priority); //TODO change to 0
 }
-
-
-/*
-uint64
-sys_wait_stat(void)
-{
-   uint64 status,addr;
-   if(argptr(0, &status, 4) < 0)
-      return -1;
-   printf("----------status-----%d",status);
-   if(argaddr(1, &addr) < 0)
-    return -1;
-  
- // return wait_stat((int*)(status), (struct perf*)(performance));
- return 0;
-}
- */
