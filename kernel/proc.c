@@ -321,8 +321,6 @@ fork(void)
   // Copy priority of parent to child.
   np->priority = p->priority;
   np->decay_factor = p->decay_factor;
-  np->run_time_ratio = p->run_time_ratio;
-
 
   // Copy trace flag of parent to child
   np->traceFlag = p->traceFlag;
@@ -418,17 +416,17 @@ exit(int status)
   acquire(&p->lock);
 
   p->xstate = status;
-  if(p->state == SLEEPING){
-    p->stime = p->stime + (ticks - p->ZzzTime);
-  }
+  // if(p->state == SLEEPING){
+  //   p->stime = p->stime + (ticks - p->ZzzTime);
+  // }
 
-  else if(p->state == RUNNING){
-    p->rutime = p->rutime + (ticks - p->runningTime);
-  }
+  // else if(p->state == RUNNING){
+  //   p->rutime = p->rutime + (ticks - p->runningTime);
+  // }
   p->state = ZOMBIE;
   p->ttime = ticks; //update terminate time
   
-  p->average_bursttime= (ALPHA * (ticks-p->runningTime)) + ((100-ALPHA) * p->average_bursttime)/100;
+  // p->average_bursttime= (ALPHA * (ticks-p->runningTime)) + ((100-ALPHA) * p->average_bursttime)/100;
 
 
   release(&wait_lock);
@@ -611,14 +609,16 @@ scheduler_SRT(struct cpu *c)
 void
 scheduler_CFSD(struct cpu *c)
 {
-  // printf("HI IM SRT\n");
-  struct proc *p;
+  // printf("HI IM CFSD\n");
+  struct proc *p; 
   int minratio=INT_MAX;
+  int currRatio;
   int pid=-1;
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
-    if((p->state == RUNNABLE) && (minratio>p->run_time_ratio)) {
-      minratio=p->run_time_ratio;
+    currRatio = (p->rutime * p->decay_factor) / (p->rutime + p->stime);
+    if((p->state == RUNNABLE) && (minratio>currRatio)) {
+      minratio=currRatio;
       pid= p->pid;
     }
     release(&p->lock);
@@ -654,6 +654,7 @@ sched(void)
   if(intr_get())
     panic("sched interruptible");
 
+  p->average_bursttime= (ALPHA * (ticks-p->runningTime)) + ((100-ALPHA) * p->average_bursttime)/100;
   intena = mycpu()->intena;
   swtch(&p->context, &mycpu()->context);
   mycpu()->intena = intena;
@@ -674,7 +675,7 @@ yield(void)
   p->state = RUNNABLE;
   p->rutime = p->rutime + (ticks - p->runningTime); //move from running to runnable
   p->runnableTime = ticks;
-  p->average_bursttime= (ALPHA * (ticks-p->runningTime)) + ((100-ALPHA) * p->average_bursttime)/100;
+  // p->average_bursttime= (ALPHA * (ticks-p->runningTime)) + ((100-ALPHA) * p->average_bursttime)/100;
   sched();
   release(&p->lock);
 }
@@ -720,16 +721,11 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
 
-  if(p->state == RUNNABLE){
-    p->retime = p->retime + (ticks - p->runnableTime);
-  }
-  if(p->state == RUNNING){
-    p->rutime = p->rutime + (ticks - p->runningTime);
-  }
-
+  p->rutime = p->rutime + (ticks - p->runningTime);
+  
   p->state = SLEEPING;
   p->ZzzTime = ticks; 
-  p->average_bursttime= (ALPHA * (ticks-p->runningTime)) + ((100-ALPHA) * p->average_bursttime)/100;
+  // p->average_bursttime= (ALPHA * (ticks-p->runningTime)) + ((100-ALPHA) * p->average_bursttime)/100;
 
 
   sched();
@@ -942,7 +938,6 @@ set_priority(int priority)
   if (decay_factor != 0){
     p->decay_factor = decay_factor;
     p->priority = priority;
-    p->run_time_ratio = (p->rutime * p->decay_factor) / (p->rutime + p->stime);
     return 0;
   }
   else return -1;
