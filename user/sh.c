@@ -83,49 +83,47 @@ runcmd(struct cmd *cmd)
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
       exit(0);
-    
+
+    // Writing the path to the file
     int fd = open(PATH, O_CREATE | O_RDWR);
-    // printf("%d\n", fd);
     write(fd, "/:/user/:", 9);
     close(fd);
-    
 
-    if (!CheckFile(ecmd->argv[0])) {
-        int fd = open(PATH, O_CREATE | O_RDWR);
-        char *buffer = malloc(getLength(PATH));
-        read(fd, buffer, getLength(PATH));
-        close(fd);
+    // Checking if the path exist
+    if (CheckFile(ecmd->argv[0]) == 0) { // The path is not exist
+      int fd;
+      char *buf;
+      fd = open(PATH, O_CREATE | O_RDWR);
+      buf = malloc(getLength(PATH));
+      read(fd, buf, getLength(PATH));
+      close(fd);
 
-        char *begin = buffer, *end, *path;
-        int cmdLength = strlen(ecmd->argv[0]);
-        while ((end = strchr(begin, ':')) != 0) {
-            int pathLength = end - begin;
-            path = malloc(cmdLength + pathLength);
-            int i=0;
-            while (begin[i]!=':')
-            {
-              path[i] = begin[i];
-              i++;
-            }
-            i=0;
-            while (i < cmdLength)
-            {
-              path[i + pathLength] = ecmd->argv[0][i];
-              i++;
-            }
-            
-            for (int i = 0; i < cmdLength; i++) {
-                path[i + pathLength] = ecmd->argv[0][i];
-            }
-            if (CheckFile(path)) {
-                exec(path, ecmd->argv);
-            }
-            begin = end + 1;
+      // Starting to search the pathes
+      char *begin = buf, *end, *p;
+      int LengthOfCMD = strlen(ecmd->argv[0]);
+
+      for(begin = buf; (end = strchr(begin, ':')) != 0; begin=end+1){
+        int length = (end - begin) + LengthOfCMD;
+        p = malloc(length);
+
+        // Copy the data to p buffer
+        memcpy(p, begin, end-begin);
+
+        // Copy the rest of the command
+        int i = 0;
+        while (i < LengthOfCMD)
+        {
+          p[i + (end - begin)] = ecmd->argv[0][i];
+          i++;
         }
+
+        // exec with the new path
+        if (CheckFile(p)) 
+          exec(p, ecmd->argv);
+      }
     } 
-    else {
-            exec(ecmd->argv[0], ecmd->argv);
-        }
+    else
+        exec(ecmd->argv[0], ecmd->argv);
     fprintf(2, "exec %s failed\n", ecmd->argv[0]);
     break;
 
@@ -543,28 +541,25 @@ nulterminate(struct cmd *cmd)
   return cmd;
 }
 
- int CheckFile(const char *filename) {
-      struct stat buffer;
-      int exist;
-      exist = stat(filename, &buffer);
-      if(exist != -1) {
-          return 1;
-      }
-      else { // -1
-          return 0;
-      }
-  }
+int CheckFile(const char *fileName) {
+  struct stat st;
+  int found = stat(fileName, &st);
+  if(found != -1)
+      return 1;
+  else 
+    return 0;
+}
 
-  int getLength(char* path) {
-    int size = 0, fd=0;
-    if ((fd=open(path, O_RDONLY))> 0) {
-        char c;
-        while(read(fd, &c, 1) == 1) 
-            size++;
-    }
-    else {
-      size=-1;
-    }
+int getLength(char* path) {
+  int size = 0;
+  int fd = 0;
+  if ((fd=open(path, O_RDONLY))> 0) {
+    struct stat st;
+    stat(path, &st);
+    size = st.size;
     close(fd);
     return size;
   }
+  else
+    return -1;
+}
